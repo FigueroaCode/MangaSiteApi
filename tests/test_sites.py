@@ -5,5 +5,5 @@ def test_mangalife_search(app, client):
     assert res.status_code == 200
 
 def test_mangalife_latest_chapter(app, client):
-    res = client.get(f'/')
+    res = client.get(f'/latest_chapter/manga4life/https://manga4life.com/manga/Martial-Peak')
     assert res.status_code == 200

@@ -88,7 +88,6 @@ def latest_chapter_mangalife(url):
 
         results = soup.find_all(class_=className)
         if len(results) <= 0:
-            print('nothing')
             return []
         
         latest_chapter = {'chapter_number': 0, 'date': datetime.datetime.min, 'link': ''}
@@ -99,12 +98,20 @@ def latest_chapter_mangalife(url):
             date = datetime.datetime.min
             for span in span_elems:
                 if span.has_attr('class') and 'float-right' in span['class']:
-                    date = datetime.datetime.strptime(span.text.strip(), '%m/%d/%Y')
-                else:
+                    try:
+                        date = datetime.datetime.strptime(span.text.strip(), '%m/%d/%Y')
+                    except ValueError:
+                        date_text = span.text.strip().lower()
+                        if 'yesterday' in date_text:
+                            date = datetime.datetime.now() - datetime.timedelta(1)
+                        elif 'hour' in date_text:
+                            date = datetime.datetime.now()
+                        else:
+                            print('Error: Unknown date format given.')
+                elif span.has_attr('class') and not ('badge' in span['class']) and not ('LastRead' in span['class']):
                     chapter = span.text.strip()
                     chapter_number = float(''.join(i for i in chapter if i.isdigit() or i is '.'))
-            #print(chapter_number)
-            #print(date)
+
             if date > latest_chapter['date'] or (date == latest_chapter['date'] and chapter_number > latest_chapter['chapter_number']):
                 latest_chapter['date'] = date
                 latest_chapter['chapter_number'] = chapter_number

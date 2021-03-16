@@ -6,7 +6,7 @@ def home():
     #sites.latest_chapter_mangalife('https://manga4life.com/manga/Slime-Taoshite-300-nen-Shiranai-Uchi-Ni-Level-Max-Ni-Nattemashita')
     return 'Hello World!';
 
-@app.route('/search/<sitename>/<name>')
+@app.route('/search/<string:sitename>/<string:name>')
 def search(sitename, name):
     try:
         mangas = []
@@ -15,4 +15,22 @@ def search(sitename, name):
 
         return {'mangas': mangas}, 200
     except TimeoutException:
+        print('Error: Could not find tag within time limit')
         return {'mangas': []}, 500
+    except Exception as e:
+        print(e)
+        return {'mangas': []}, 500
+
+@app.route('/latest_chapter/<string:sitename>/<path:manga_url>')
+def latest_chapter(sitename, manga_url):
+    try:
+        if sitename == 'manga4life':
+            chapter = sites.latest_chapter_mangalife(manga_url)
+
+        return {'latest_chapter': chapter}, 200
+    except TimeoutException:
+        print('Error: Could not find tag within time limit')
+        return {'latest_chapter': {}}, 500
+    except Exception as e:
+        print(e)
+        return {'latest_chapter': {}}, 500
