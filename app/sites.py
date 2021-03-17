@@ -9,6 +9,10 @@ import datetime
 
 import chromedriver_binary  # Adds chromedriver binary to path
 
+# For formatting the html: https://www.freeformatter.com/html-formatter.html#ad-output
+# Set to true to save the html of the requested page
+SAVE_OUTPUT = False
+
 def setup_driver():
     # Add additional Options to the webdriver
     chrome_options = Options()
@@ -25,9 +29,6 @@ def setup_driver():
     driver = webdriver.Chrome(options=chrome_options)
     return driver
 
-# For formatting the html: https://www.freeformatter.com/html-formatter.html#ad-output
-# Set to true to save the html of the requested page
-SAVE_OUTPUT = False
 def save_page(page):    
     with open('output.html', 'w',  encoding="utf-8") as file:
         file.write(page.page_source)
@@ -47,7 +48,7 @@ def search_mangalife(name=''):
     
     try:
         className = 'SeriesName'
-        element = WebDriverWait(driver, 1).until(lambda s: s.find_element_by_class_name(className).is_displayed())
+        element = WebDriverWait(driver, 5).until(lambda s: s.find_element_by_class_name(className).is_displayed())
         if SAVE_OUTPUT:
             save_page(driver)
         soup = bs(driver.page_source, 'html.parser')
@@ -58,21 +59,31 @@ def search_mangalife(name=''):
             return []
 
         mangas = []
-        for elem in results:
-            link = base_url + elem['href']
-            img_elem = elem.find('img')
-            img_src = ''
-            if img_elem is not None:
-                img_src = img_elem['src']
+        i = 0
+        while i < len(results) - 1:
+            elem1 = results[i]
+            elem2 = results[i + 1]
 
-            mangas.append({'link': link, 'img_src': img_src})
+            img_elem = elem1.find('img')
+            if img_elem is not None:
+                link = base_url + elem1['href']
+                name = elem2.text.strip()
+                img_src = img_elem['src']
+                mangas.append({'link': link, 'img_src': img_src, 'name': name})
+            else:
+                img_elem = elem2.find('img')
+                link = base_url + elem2['href']
+                name = elem1.text.strip()
+                img_src = img_elem['src']
+                mangas.append({'link': link, 'img_src': img_src, 'name': name})
+            i += 2
 
     except TimeoutException:
         print("TimeoutException: Element not found")
         raise
     finally:
         driver.quit()
-
+    
     return mangas
     
 def latest_chapter_mangalife(url):
@@ -80,7 +91,7 @@ def latest_chapter_mangalife(url):
     driver.get(url)
     try:
         className = 'ChapterLink'
-        element = WebDriverWait(driver, 1).until(lambda s: s.find_element_by_class_name(className).is_displayed())
+        element = WebDriverWait(driver, 5).until(lambda s: s.find_element_by_class_name(className).is_displayed())
         if SAVE_OUTPUT:
             save_page(driver)
 
@@ -108,9 +119,8 @@ def latest_chapter_mangalife(url):
                             date = datetime.datetime.now()
                         else:
                             print('Error: Unknown date format given.')
-                elif span.has_attr('class') and not ('badge' in span['class']) and not ('LastRead' in span['class']):
-                    chapter = span.text.strip()
-                    chapter_number = float(''.join(i for i in chapter if i.isdigit() or i is '.'))
+                elif span.has_attr('class') and not ('badge' in span['class']) and not ('LastRead' in span['class']): 
+                    chapter_number = float(''.join(i for i in span.text.strip() if i.isdigit() or i is '.'))
 
             if date > latest_chapter['date'] or (date == latest_chapter['date'] and chapter_number > latest_chapter['chapter_number']):
                 latest_chapter['date'] = date

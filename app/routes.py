@@ -1,5 +1,6 @@
 from app import app, sites
 from selenium.common.exceptions import TimeoutException
+import datetime
 
 @app.route('/')
 def home():
@@ -10,7 +11,7 @@ def home():
 def search(sitename, name):
     try:
         mangas = []
-        if sitename == 'manga4life':
+        if sitename == 'manga4life.com':
             mangas = sites.search_mangalife(name)
 
         return {'mangas': mangas}, 200
@@ -24,7 +25,8 @@ def search(sitename, name):
 @app.route('/latest_chapter/<string:sitename>/<path:manga_url>')
 def latest_chapter(sitename, manga_url):
     try:
-        if sitename == 'manga4life':
+        chapter = {'chapter_number': 0, 'date': datetime.datetime.min, 'link': ''}
+        if sitename == 'manga4life.com':
             chapter = sites.latest_chapter_mangalife(manga_url)
 
         return {'latest_chapter': chapter}, 200
