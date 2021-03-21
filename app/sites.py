@@ -2,10 +2,11 @@ import requests
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import TimeoutException, StaleElementReferenceException
 from bs4 import BeautifulSoup as bs
 from urllib.parse import quote, urlencode
 import datetime
+import time
 
 import chromedriver_binary  # Adds chromedriver binary to path
 
@@ -35,7 +36,6 @@ def save_page(page):
 
 ############## https://manga4life.com/ ##############
 # TODO: Search on site (2 forms: use site's search, get all manga in site and search manually)
-# TODO: Check if given manga has updated
 
 def search_mangalife(name=''):
     base_url = 'https://manga4life.com'
@@ -48,6 +48,9 @@ def search_mangalife(name=''):
     
     try:
         className = 'SeriesName'
+        # Need to wait for the browser to setup otherwise sometimes it is too fast
+        # and results in a "Stale element reference: element is not attached to the page of the document"
+        time.sleep(1)
         element = WebDriverWait(driver, 5).until(lambda s: s.find_element_by_class_name(className).is_displayed())
         if SAVE_OUTPUT:
             save_page(driver)
@@ -89,8 +92,12 @@ def search_mangalife(name=''):
 def latest_chapter_mangalife(url):
     driver = setup_driver()
     driver.get(url)
+
     try:
         className = 'ChapterLink'
+        # Need to wait for the browser to setup otherwise sometimes it is too fast
+        # and results in a "Stale element reference: element is not attached to the page of the document"
+        time.sleep(1)
         element = WebDriverWait(driver, 5).until(lambda s: s.find_element_by_class_name(className).is_displayed())
         if SAVE_OUTPUT:
             save_page(driver)
@@ -128,7 +135,23 @@ def latest_chapter_mangalife(url):
                 latest_chapter['link'] = link
 
         latest_chapter['date'] = latest_chapter['date'].strftime('%m/%d/%Y')
+
     finally:
         driver.quit()
 
     return latest_chapter
+
+def latest_chapters(mangas):
+    for manga in mangas:
+        latest_chapter = {'chapter_number': 0, 'date': 'Failed to get data', 'link': manga['link']}
+        try:
+            if manga['source'] == 'manga4life.com':
+                latest_chapter = latest_chapter_mangalife(manga['link'])
+        except Exception as e:
+            print('Error getting latest chapter:', e)
+        
+        manga['release_date'] = latest_chapter['date']
+        manga['chapter_link'] = latest_chapter['link']
+        manga['latest_chapter'] = latest_chapter['chapter_number']
+
+    return {'mangas': mangas}

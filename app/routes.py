@@ -1,6 +1,9 @@
 from app import app, sites
+from flask import request
 from selenium.common.exceptions import TimeoutException
 import datetime
+import sys
+import json
 
 @app.route('/')
 def home():
@@ -21,6 +24,12 @@ def search(sitename, name):
     except Exception as e:
         print(e)
         return {'mangas': []}, 500
+
+@app.route('/latest', methods=['GET', 'POST'])
+def latest():
+    data = json.loads(request.data)
+    mangas = data['mangas']
+    return sites.latest_chapters(mangas)
 
 @app.route('/latest_chapter/<string:sitename>/<path:manga_url>')
 def latest_chapter(sitename, manga_url):
