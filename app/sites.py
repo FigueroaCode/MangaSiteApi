@@ -7,12 +7,13 @@ from bs4 import BeautifulSoup as bs
 from urllib.parse import quote, urlencode
 import datetime
 import time
-
+import concurrent.futures
 import chromedriver_binary  # Adds chromedriver binary to path
 
 # For formatting the html: https://www.freeformatter.com/html-formatter.html#ad-output
 # Set to true to save the html of the requested page
 SAVE_OUTPUT = False
+MAX_THREADS = 30
 
 def setup_driver():
     # Add additional Options to the webdriver
@@ -97,7 +98,7 @@ def latest_chapter_mangalife(url):
         className = 'ChapterLink'
         # Need to wait for the browser to setup otherwise sometimes it is too fast
         # and results in a "Stale element reference: element is not attached to the page of the document"
-        time.sleep(1)
+        time.sleep(2)
         element = WebDriverWait(driver, 5).until(lambda s: s.find_element_by_class_name(className).is_displayed())
         if SAVE_OUTPUT:
             save_page(driver)
@@ -127,7 +128,13 @@ def latest_chapter_mangalife(url):
                         else:
                             print('Error: Unknown date format given.')
                 elif span.has_attr('class') and not ('badge' in span['class']) and not ('LastRead' in span['class']): 
-                    chapter_number = float(''.join(i for i in span.text.strip() if i.isdigit() or i is '.'))
+                    prev = '0'
+                    number = []
+                    for i in span.text.strip():
+                        if i.isdigit() or (prev.isdigit() and i is '.'):
+                            number.append(i)
+                        prev = i
+                    chapter_number = float(''.join(number))
 
             if date > latest_chapter['date'] or (date == latest_chapter['date'] and chapter_number > latest_chapter['chapter_number']):
                 latest_chapter['date'] = date
@@ -141,17 +148,27 @@ def latest_chapter_mangalife(url):
 
     return latest_chapter
 
-def latest_chapters(mangas):
-    for manga in mangas:
-        latest_chapter = {'chapter_number': 0, 'date': 'Failed to get data', 'link': manga['link']}
-        try:
-            if manga['source'] == 'manga4life.com':
-                latest_chapter = latest_chapter_mangalife(manga['link'])
-        except Exception as e:
-            print('Error getting latest chapter:', e)
+def update_manga(manga):
+    latest_chapter = {'chapter_number': 0, 'date': 'Failed to get data', 'link': manga['link']}
+    try:
+        if manga['source'] == 'manga4life.com':
+            latest_chapter = latest_chapter_mangalife(manga['link'])
+    except Exception as e:
+        print('Error getting latest chapter:', e)
         
-        manga['release_date'] = latest_chapter['date']
-        manga['chapter_link'] = latest_chapter['link']
-        manga['latest_chapter'] = latest_chapter['chapter_number']
+    manga['release_date'] = latest_chapter['date']
+    manga['chapter_link'] = latest_chapter['link']
+    manga['latest_chapter'] = latest_chapter['chapter_number']
+
+    # Add small delay to avoid spamming the website too hard
+    # TODO: Might be best to mix the websites as much as possible to reduce load on sites
+    time.sleep(0.25)
+
+def latest_chapters(mangas):
+    threads = min(MAX_THREADS, len(mangas))
+
+    if threads is not 0:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as exec:
+            exec.map(update_manga, mangas)
 
     return {'mangas': mangas}
