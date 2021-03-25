@@ -4,8 +4,16 @@ def test_mangalife_search(app, client):
     res = client.get(f'/search/manga4life.com/slime tao')
     assert res.status_code == 200
 
+def test_reaperscans_search(app, client):
+    res = client.get(f'/search/reaperscans.com/xiu tu')
+    assert res.status_code == 200
+
 def test_mangalife_latest_chapter(app, client):
     res = client.get(f'/latest_chapter/manga4life.com/https://manga4life.com/manga/Martial-Peak')
+    assert res.status_code == 200
+
+def test_reaperscans_latest_chapter(app, client):
+    res = client.get(f'/latest_chapter/reaperscans.com/https://reaperscans.com/comics/316621-the-great-mage-returns-after-4000-years')
     assert res.status_code == 200
 
 def test_latest(app, client):
