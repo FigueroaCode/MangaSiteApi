@@ -12,6 +12,19 @@ import time
 import concurrent.futures
 import chromedriver_binary  # Adds chromedriver binary to path
 
+
+'''
+    https://zeroscans.com/home
+DONE    https://manga4life.com/
+    https://leviatanscans.com/
+    https://lhtranslation.net/
+    https://mangasushi.net/
+    https://manhuaplus.com/
+    https://mangadex.org/
+    https://manganelo.com/
+DONE    https://reaperscans.com/home
+'''
+#
 # For formatting the html: https://www.freeformatter.com/html-formatter.html#ad-output
 # Set to true to save the html of the requested page
 SAVE_OUTPUT = False
@@ -291,4 +304,4 @@ def latest_chapters(mangas):
         with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as exec:
             exec.map(update_manga, mangas)
 
-    return {'mangas': mangas}
+    return mangas

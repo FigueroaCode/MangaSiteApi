@@ -15,6 +15,7 @@ def latest():
     mangas = data['mangas']
     try:
         latest_chapters = sites.latest_chapters(mangas)
+        return {'mangas': latest_chapters}, 200
     except TimeoutException:
         print('Error: Could not find tag within time limit')
         return {'error': 'Error: Could not find tag within time limit'}, 500
