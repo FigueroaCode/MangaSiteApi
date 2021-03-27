@@ -31,6 +31,8 @@ def search(sitename, name):
             mangas = sites.search_mangalife(name)
         elif sitename == 'manganelo.com':
             mangas = sites.search_manganelo(name)
+        elif sitename == 'leviatanscans.com':
+            mangas = sites.search_leviatanscans(name)
         elif sitename == 'reaperscans.com':
             mangas = sites.search_reaperscans(name)
 
@@ -50,6 +52,8 @@ def latest_chapter(sitename, manga_url):
             chapter = sites.latest_chapter_mangalife(manga_url)
         elif sitename == 'manganelo.com':
             chapter = sites.latest_chapter_manganelo(manga_url)
+        elif sitename == 'leviatanscans.com':
+            chapter = sites.latest_chapter_leviatanscans(manga_url)
         elif sitename == 'reaperscans.com':
             chapter = sites.latest_chapter_reaperscans(manga_url)
         return {'latest_chapter': chapter}, 200

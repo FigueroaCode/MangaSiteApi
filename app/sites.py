@@ -5,7 +5,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import TimeoutException, StaleElementReferenceException
 from bs4 import BeautifulSoup as bs
-from urllib.parse import quote, urlencode
+from urllib.parse import quote, quote_plus, urlencode
 import datetime
 from dateutil.relativedelta import relativedelta
 import time
@@ -68,6 +68,8 @@ def update_manga(manga):
         latest_chapter = latest_chapter_mangalife(manga['link'])
     elif manga['source'] == 'manganelo.com':
         latest_chapter = latest_chapter_manganelo(manga['link'])
+    elif manga['source'] == 'leviatanscans.com':
+        latest_chapter = latest_chapter_leviatanscans(manga['link'])
     elif manga['source'] == 'reaperscans.com':
         latest_chapter = latest_chapter_reaperscans(manga['link'])
         
@@ -297,6 +299,83 @@ def latest_chapter_manganelo(url):
                 latest_chapter['date'] = date
                 latest_chapter['chapter_number'] = chapter_number
                 latest_chapter['link'] = link
+
+        latest_chapter['date'] = latest_chapter['date'].strftime('%m/%d/%Y')
+
+    finally:
+        driver.quit()
+
+    return latest_chapter
+
+############## https://leviatanscans.com ##############
+def find_manga_leviatanscans(url, name):
+    page = requests.get(url)
+    soup = bs(page.content, 'html.parser')
+    mangas = []
+    className = 'item-thumb c-image-hover'
+
+    results = soup.find_all(class_=className)
+    if len(results) <= 0:
+        print('nothing')
+        return []
+
+    for elem in results:
+        link_elem = elem.find('a')
+        img_elem = elem.find('img')
+
+        link = link_elem['href']
+        manga_name = link_elem['title']
+        img_src = img_elem['src']
+
+        if name.lower() in manga_name.lower():
+            mangas.append({'link': link, 'img_src': img_src, 'name': manga_name})
+    return mangas
+def search_leviatanscans(name=''):
+    base_url = 'https://leviatanscans.com'
+    # New mangas
+    url = f'{base_url}/manga/'
+    mangas = find_manga_leviatanscans(url, name)
+
+    # Older mangas
+    url = f'{base_url}/manga/page/2'
+    mangas = mangas + find_manga_leviatanscans(url, name)
+    return mangas
+
+def latest_chapter_leviatanscans(url):
+    driver = setup_driver()
+    driver.get(url)
+
+    try:
+        className = 'wp-manga-chapter  '
+        # Need to wait for the browser to setup otherwise sometimes it is too fast
+        # and results in a "Stale element reference: element is not attached to the page of the document"
+        time.sleep(2)
+        element = WebDriverWait(driver, 10).until(lambda s: s.find_element(By.CSS_SELECTOR, f'li[class="{className}"]').is_displayed())
+
+        # Page source contents don't get updated for some reason on this page
+        # so need to do the parsing using selenium instead of Beautiful soup
+        latest_chapter = {'chapter_number': 0, 'date': datetime.datetime.min, 'link': ''}
+        results = driver.find_elements(By.CSS_SELECTOR, f'li[class="{className}"]')
+        for elem in results:
+            link_elem = elem.find_element(By.CSS_SELECTOR, 'a')
+            date_elem = elem.find_element(By.CSS_SELECTOR, 'span[class="chapter-release-date"]')
+            if link_elem is not None:
+                chapter_number = link_elem.text.strip()
+                date = date_elem.text.strip()
+                # The hidden chapters don't have text, but does are the oldest ones,
+                # so no need to worry about them
+                if chapter_number is not '' and date is not '':
+                    chapter_number = float(chapter_number)
+                    link = link_elem.get_attribute('href')
+                    date_elem = elem.find_element(By.CSS_SELECTOR, 'span[class="chapter-release-date"]')
+                    # Example format: March 20, 2021
+                    # Code documentation: https://docs.python.org/3/library/datetime.html#strftime-and-strptime-format-codes
+                    date = datetime.datetime.strptime(date, '%B %d, %Y')
+
+                    if date > latest_chapter['date'] or (date == latest_chapter['date'] and chapter_number > latest_chapter['chapter_number']):
+                        latest_chapter['date'] = date
+                        latest_chapter['chapter_number'] = chapter_number
+                        latest_chapter['link'] = link
 
         latest_chapter['date'] = latest_chapter['date'].strftime('%m/%d/%Y')
 

@@ -8,12 +8,20 @@ def test_manganelo_search(app, client):
     res = client.get(f'/search/manganelo.com/the beginning')
     assert res.status_code == 200
 
+def test_leviatanscans_search(app, client):
+    res = client.get(f'/search/leviatanscans.com/sorcerer king')
+    assert res.status_code == 200
+
 def test_mangalife_latest_chapter(app, client):
     res = client.get(f'/latest_chapter/manga4life.com/https://manga4life.com/manga/Martial-Peak')
     assert res.status_code == 200
 
 def test_manganelo_latest_chapter(app, client):
     res = client.get(f'/latest_chapter/manganelo.com/https://manganelo.com/manga/ijhr296321559609648')
+    assert res.status_code == 200
+
+def test_leviatanscans_latest_chapter(app, client):
+    res = client.get(f'/latest_chapter/leviatanscans.com/https://leviatanscans.com/manga/the-legend-of-sura-venom-dragon/')
     assert res.status_code == 200
 
 #def test_reaperscans_search(app, client):
