@@ -29,6 +29,8 @@ def search(sitename, name):
         mangas = []
         if sitename == 'manga4life.com':
             mangas = sites.search_mangalife(name)
+        elif sitename == 'manganelo.com':
+            mangas = sites.search_manganelo(name)
         elif sitename == 'reaperscans.com':
             mangas = sites.search_reaperscans(name)
 
@@ -46,9 +48,10 @@ def latest_chapter(sitename, manga_url):
         chapter = {'chapter_number': 0, 'date': datetime.datetime.min, 'link': ''}
         if sitename == 'manga4life.com':
             chapter = sites.latest_chapter_mangalife(manga_url)
+        elif sitename == 'manganelo.com':
+            chapter = sites.latest_chapter_manganelo(manga_url)
         elif sitename == 'reaperscans.com':
             chapter = sites.latest_chapter_reaperscans(manga_url)
-
         return {'latest_chapter': chapter}, 200
     except TimeoutException:
         print('Error: Could not find tag within time limit')

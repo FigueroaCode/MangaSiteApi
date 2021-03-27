@@ -20,15 +20,25 @@ DONE    https://manga4life.com/
     https://lhtranslation.net/
     https://mangasushi.net/
     https://manhuaplus.com/
-    https://mangadex.org/
-    https://manganelo.com/
-DONE    https://reaperscans.com/home
+DOWN    https://mangadex.org/
+DONE    https://manganelo.com/
+BLOCKED    https://reaperscans.com/home
 '''
 #
 # For formatting the html: https://www.freeformatter.com/html-formatter.html#ad-output
 # Set to true to save the html of the requested page
 SAVE_OUTPUT = False
 MAX_THREADS = 30
+
+def check_websites():
+    driver = setup_driver()
+    urls = [['https://zeroscans.com/home', 'zeroscans'], ['https://leviatanscans.com/', 'leviatan'], ['https://lhtranslation.net', 'lhtranslation'],
+            ['https://mangasushi.net/', 'mangasushi'], ['https://manhuaplus.com/', 'manhuaplus'], ['https://mangadex.org/', 'mangadex'],
+            ['https://manganelo.com/', 'manganelo'], ['https://reaperscans.com/home', 'reaperscans'], ['https://manga4life.com/', 'mangalife']]
+    for url in urls:
+        driver.get(url[0])
+        if SAVE_OUTPUT:
+            save_page(driver, f'outputs/{url[1]}.html')
 
 def setup_driver():
     # Add additional Options to the webdriver
@@ -46,9 +56,52 @@ def setup_driver():
     driver = webdriver.Chrome(options=chrome_options)
     return driver
 
-def save_page(page):    
-    with open('output.html', 'w',  encoding="utf-8") as file:
+def save_page(page, name='outputs/output.html'):    
+    with open(name, 'w',  encoding="utf-8") as file:
         file.write(page.page_source)
+
+############## General ##############
+def update_manga(manga):
+    latest_chapter = {'chapter_number': 0, 'date': 'Failed to get data', 'link': manga['link']}
+
+    if manga['source'] == 'manga4life.com':
+        latest_chapter = latest_chapter_mangalife(manga['link'])
+    elif manga['source'] == 'manganelo.com':
+        latest_chapter = latest_chapter_manganelo(manga['link'])
+    elif manga['source'] == 'reaperscans.com':
+        latest_chapter = latest_chapter_reaperscans(manga['link'])
+        
+    manga['release_date'] = latest_chapter['date']
+    manga['chapter_link'] = latest_chapter['link']
+    manga['latest_chapter'] = latest_chapter['chapter_number']
+
+    # Add small delay to avoid spamming the website too hard
+    # TODO: Might be best to mix the websites as much as possible to reduce load on sites
+    time.sleep(0.25)
+
+def latest_chapters(mangas):
+    threads = min(MAX_THREADS, len(mangas))
+
+    if threads is not 0:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as exec:
+            exec.map(update_manga, mangas)
+
+    return mangas
+
+def get_chapter_number(chapter_name):
+    prev = '0'
+    number = []
+    decimal_found = False
+    for i in chapter_name:
+        # There should only be numbers after finding the decimal
+        if decimal_found is True and not i.isdigit():
+            break
+        if i.isdigit() or (prev.isdigit() and i is '.'):
+            number.append(i)
+        if decimal_found is False and (prev.isdigit() and i is '.'):
+            decimal_found = True
+        prev = i
+    return float(''.join(number))
 
 ############## https://manga4life.com/ ##############
 def search_mangalife(name=''):
@@ -84,15 +137,15 @@ def search_mangalife(name=''):
             img_elem = elem1.find('img')
             if img_elem is not None:
                 link = base_url + elem1['href']
-                name = elem2.text.strip()
+                manga_name = elem2.text.strip()
                 img_src = img_elem['src']
-                mangas.append({'link': link, 'img_src': img_src, 'name': name})
+                mangas.append({'link': link, 'img_src': img_src, 'name': manga_name})
             else:
                 img_elem = elem2.find('img')
                 link = base_url + elem2['href']
-                name = elem1.text.strip()
+                manga_name = elem1.text.strip()
                 img_src = img_elem['src']
-                mangas.append({'link': link, 'img_src': img_src, 'name': name})
+                mangas.append({'link': link, 'img_src': img_src, 'name': manga_name})
             i += 2
     finally:
         driver.quit()
@@ -137,13 +190,108 @@ def latest_chapter_mangalife(url):
                         else:
                             print('Error: Unknown date format given.')
                 elif span.has_attr('class') and not ('badge' in span['class']) and not ('LastRead' in span['class']): 
-                    prev = '0'
-                    number = []
-                    for i in span.text.strip():
-                        if i.isdigit() or (prev.isdigit() and i is '.'):
-                            number.append(i)
-                        prev = i
-                    chapter_number = float(''.join(number))
+                    #prev = '0'
+                    #number = []
+                    #for i in span.text.strip():
+                    #    if i.isdigit() or (prev.isdigit() and i is '.'):
+                    #        number.append(i)
+                    #    prev = i
+                    #chapter_number = float(''.join(number))
+                    chapter_number = get_chapter_number(span.text.strip())
+
+            if date > latest_chapter['date'] or (date == latest_chapter['date'] and chapter_number > latest_chapter['chapter_number']):
+                latest_chapter['date'] = date
+                latest_chapter['chapter_number'] = chapter_number
+                latest_chapter['link'] = link
+
+        latest_chapter['date'] = latest_chapter['date'].strftime('%m/%d/%Y')
+
+    finally:
+        driver.quit()
+
+    return latest_chapter
+
+############## https://manganelo.com ##############
+def clean_name(name):
+    words = name.split(' ')
+    # remove empty spaces
+    words = [w for w in words if w]
+    # combine words with underscores
+    return '_'.join(words)
+
+
+def search_manganelo(name=''):
+    base_url = 'https://manganelo.com'
+    name = clean_name(name)
+    url = f'{base_url}/search/story/{quote(name)}'
+
+    driver = setup_driver()
+    driver.get(url)
+    
+    mangas = []
+    if SAVE_OUTPUT:
+            save_page(driver)
+    try:
+        className = 'search-story-item'
+        # Need to wait for the browser to setup otherwise sometimes it is too fast
+        # and results in a "Stale element reference: element is not attached to the page of the document"
+        time.sleep(1)
+        element = WebDriverWait(driver, 5).until(lambda s: s.find_element_by_class_name(className).is_displayed())
+
+        soup = bs(driver.page_source, 'html.parser')
+
+        results = soup.find_all(class_=className)
+        if len(results) <= 0:
+            print('nothing')
+            return []
+
+        for elem in results:
+            link_elem = elem.find('a', 'item-img')
+            img_elem = link_elem.find('img')
+
+            link = link_elem['href']
+            manga_name = link_elem['title']
+            img_src = img_elem['src']
+
+            mangas.append({'link': link, 'img_src': img_src, 'name': manga_name})
+
+    finally:
+        driver.quit()
+    
+    return mangas
+
+def latest_chapter_manganelo(url):
+    driver = setup_driver()
+    driver.get(url)
+    
+    if SAVE_OUTPUT:
+        save_page(driver)
+    try:
+        className = 'row-content-chapter'
+        # Need to wait for the browser to setup otherwise sometimes it is too fast
+        # and results in a "Stale element reference: element is not attached to the page of the document"
+        time.sleep(1)
+        element = WebDriverWait(driver, 5).until(lambda s: s.find_element_by_class_name(className).is_displayed())
+
+        soup = bs(driver.page_source, 'html.parser')
+
+        results_container = soup.find(class_=className)
+        results = results_container.find_all(class_='a-h')
+        if len(results) <= 0:
+            return []
+        latest_chapter = {'chapter_number': 0, 'date': datetime.datetime.min, 'link': ''}
+        for elem in results:
+            link_elem = elem.find('a', class_='chapter-name')
+            date_elem = elem.find('span', class_='chapter-time')
+
+            if None in (link_elem, date_elem):
+                continue
+
+            link = link_elem['href']
+            chapter_number = get_chapter_number(link_elem.text.strip())
+            # Example format: Mar 27,2021 08:03
+            # Code documentation: https://docs.python.org/3/library/datetime.html#strftime-and-strptime-format-codes
+            date = datetime.datetime.strptime(date_elem['title'], '%b %d,%Y %H:%M')
 
             if date > latest_chapter['date'] or (date == latest_chapter['date'] and chapter_number > latest_chapter['chapter_number']):
                 latest_chapter['date'] = date
@@ -200,6 +348,8 @@ def search_reaperscans(name=''):
     try:
         url = f'{base_url}?page=1'
         driver.get(url)
+        if SAVE_OUTPUT:
+            save_page(driver)
         pagination_elem = WebDriverWait(driver, 5).until(lambda s: s.find_element_by_class_name('pagination').is_displayed())
         soup = bs(driver.page_source, 'html.parser')
 
@@ -279,29 +429,3 @@ def latest_chapter_reaperscans(url):
         driver.quit()
 
     return latest_chapter
-
-############## General ##############
-def update_manga(manga):
-    latest_chapter = {'chapter_number': 0, 'date': 'Failed to get data', 'link': manga['link']}
-
-    if manga['source'] == 'manga4life.com':
-        latest_chapter = latest_chapter_mangalife(manga['link'])
-    elif manga['source'] == 'reaperscans.com':
-        latest_chapter = latest_chapter_reaperscans(manga['link'])
-        
-    manga['release_date'] = latest_chapter['date']
-    manga['chapter_link'] = latest_chapter['link']
-    manga['latest_chapter'] = latest_chapter['chapter_number']
-
-    # Add small delay to avoid spamming the website too hard
-    # TODO: Might be best to mix the websites as much as possible to reduce load on sites
-    time.sleep(0.25)
-
-def latest_chapters(mangas):
-    threads = min(MAX_THREADS, len(mangas))
-
-    if threads is not 0:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as exec:
-            exec.map(update_manga, mangas)
-
-    return mangas
