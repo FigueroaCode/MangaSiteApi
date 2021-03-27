@@ -11,18 +11,18 @@ from dateutil.relativedelta import relativedelta
 import time
 import concurrent.futures
 import chromedriver_binary  # Adds chromedriver binary to path
-
+import cloudscraper # https://pypi.org/project/cloudscraper/
 
 '''
     https://zeroscans.com/home
 DONE    https://manga4life.com/
-    https://leviatanscans.com/
+DONE    https://leviatanscans.com/
     https://lhtranslation.net/
     https://mangasushi.net/
     https://manhuaplus.com/
 DOWN    https://mangadex.org/
 DONE    https://manganelo.com/
-BLOCKED    https://reaperscans.com/home
+DONE    https://reaperscans.com/home
 '''
 #
 # For formatting the html: https://www.freeformatter.com/html-formatter.html#ad-output
@@ -192,13 +192,6 @@ def latest_chapter_mangalife(url):
                         else:
                             print('Error: Unknown date format given.')
                 elif span.has_attr('class') and not ('badge' in span['class']) and not ('LastRead' in span['class']): 
-                    #prev = '0'
-                    #number = []
-                    #for i in span.text.strip():
-                    #    if i.isdigit() or (prev.isdigit() and i is '.'):
-                    #        number.append(i)
-                    #    prev = i
-                    #chapter_number = float(''.join(number))
                     chapter_number = get_chapter_number(span.text.strip())
 
             if date > latest_chapter['date'] or (date == latest_chapter['date'] and chapter_number > latest_chapter['chapter_number']):
@@ -227,84 +220,53 @@ def search_manganelo(name=''):
     name = clean_name(name)
     url = f'{base_url}/search/story/{quote(name)}'
 
-    driver = setup_driver()
-    driver.get(url)
-    
+    page = requests.get(url)
+    soup = bs(page.content, 'html.parser')
+    className = 'search-story-item'
+    results = soup.find_all(class_=className)
+    if len(results) <= 0:
+        print('nothing')
+        return []
     mangas = []
-    if SAVE_OUTPUT:
-            save_page(driver)
-    try:
-        className = 'search-story-item'
-        # Need to wait for the browser to setup otherwise sometimes it is too fast
-        # and results in a "Stale element reference: element is not attached to the page of the document"
-        time.sleep(1)
-        element = WebDriverWait(driver, 5).until(lambda s: s.find_element_by_class_name(className).is_displayed())
+    for elem in results:
+        link_elem = elem.find('a', 'item-img')
+        img_elem = link_elem.find('img')
 
-        soup = bs(driver.page_source, 'html.parser')
+        link = link_elem['href']
+        manga_name = link_elem['title']
+        img_src = img_elem['src']
 
-        results = soup.find_all(class_=className)
-        if len(results) <= 0:
-            print('nothing')
-            return []
-
-        for elem in results:
-            link_elem = elem.find('a', 'item-img')
-            img_elem = link_elem.find('img')
-
-            link = link_elem['href']
-            manga_name = link_elem['title']
-            img_src = img_elem['src']
-
-            mangas.append({'link': link, 'img_src': img_src, 'name': manga_name})
-
-    finally:
-        driver.quit()
-    
+        mangas.append({'link': link, 'img_src': img_src, 'name': manga_name})
     return mangas
 
 def latest_chapter_manganelo(url):
-    driver = setup_driver()
-    driver.get(url)
-    
-    if SAVE_OUTPUT:
-        save_page(driver)
-    try:
-        className = 'row-content-chapter'
-        # Need to wait for the browser to setup otherwise sometimes it is too fast
-        # and results in a "Stale element reference: element is not attached to the page of the document"
-        time.sleep(1)
-        element = WebDriverWait(driver, 5).until(lambda s: s.find_element_by_class_name(className).is_displayed())
+    page = requests.get(url)
+    soup = bs(page.content, 'html.parser')
+    className = 'row-content-chapter'
+    results_container = soup.find(class_=className)
+    results = results_container.find_all(class_='a-h')
+    if len(results) <= 0:
+        return []
+    latest_chapter = {'chapter_number': 0, 'date': datetime.datetime.min, 'link': ''}
+    for elem in results:
+        link_elem = elem.find('a', class_='chapter-name')
+        date_elem = elem.find('span', class_='chapter-time')
 
-        soup = bs(driver.page_source, 'html.parser')
+        if None in (link_elem, date_elem):
+            continue
 
-        results_container = soup.find(class_=className)
-        results = results_container.find_all(class_='a-h')
-        if len(results) <= 0:
-            return []
-        latest_chapter = {'chapter_number': 0, 'date': datetime.datetime.min, 'link': ''}
-        for elem in results:
-            link_elem = elem.find('a', class_='chapter-name')
-            date_elem = elem.find('span', class_='chapter-time')
+        link = link_elem['href']
+        chapter_number = get_chapter_number(link_elem.text.strip())
+        # Example format: Mar 27,2021 08:03
+        # Code documentation: https://docs.python.org/3/library/datetime.html#strftime-and-strptime-format-codes
+        date = datetime.datetime.strptime(date_elem['title'], '%b %d,%Y %H:%M')
 
-            if None in (link_elem, date_elem):
-                continue
+        if date > latest_chapter['date'] or (date == latest_chapter['date'] and chapter_number > latest_chapter['chapter_number']):
+            latest_chapter['date'] = date
+            latest_chapter['chapter_number'] = chapter_number
+            latest_chapter['link'] = link
 
-            link = link_elem['href']
-            chapter_number = get_chapter_number(link_elem.text.strip())
-            # Example format: Mar 27,2021 08:03
-            # Code documentation: https://docs.python.org/3/library/datetime.html#strftime-and-strptime-format-codes
-            date = datetime.datetime.strptime(date_elem['title'], '%b %d,%Y %H:%M')
-
-            if date > latest_chapter['date'] or (date == latest_chapter['date'] and chapter_number > latest_chapter['chapter_number']):
-                latest_chapter['date'] = date
-                latest_chapter['chapter_number'] = chapter_number
-                latest_chapter['link'] = link
-
-        latest_chapter['date'] = latest_chapter['date'].strftime('%m/%d/%Y')
-
-    finally:
-        driver.quit()
-
+    latest_chapter['date'] = latest_chapter['date'].strftime('%m/%d/%Y')
     return latest_chapter
 
 ############## https://leviatanscans.com ##############
@@ -330,6 +292,7 @@ def find_manga_leviatanscans(url, name):
         if name.lower() in manga_name.lower():
             mangas.append({'link': link, 'img_src': img_src, 'name': manga_name})
     return mangas
+
 def search_leviatanscans(name=''):
     base_url = 'https://leviatanscans.com'
     # New mangas
@@ -395,14 +358,9 @@ def get_css_url(css):
 
     return css[open_paran_index + 1: closed_paran_index]
 
-def find_manga_reaperscans(driver, soup, name):
+def find_manga_reaperscans(soup, name):
     mangas = []
     className = 'list-item'
-    # Need to wait for the browser to setup otherwise sometimes it is too fast
-    # and results in a "Stale element reference: element is not attached to the page of the document"
-    time.sleep(1)
-    element = WebDriverWait(driver, 5).until(lambda s: s.find_element_by_class_name(className).is_displayed())
-
     results = soup.find_all(class_=className)
     if len(results) <= 0:
         print('nothing')
@@ -421,31 +379,26 @@ def find_manga_reaperscans(driver, soup, name):
     return mangas
 
 def search_reaperscans(name=''):
+    # Tool for getting through cloudfare captcha
+    # If it doesn't work anymore run:
+    # pip show cloudscraper -> then if its not the latest version run
+    # pip install cloudscraper -U
+    # If that doesn't fix it, must find a new tool
+    scraper = cloudscraper.create_scraper()
     base_url = 'https://reaperscans.com/comics'
-    driver = setup_driver()
 
-    try:
-        url = f'{base_url}?page=1'
-        driver.get(url)
-        if SAVE_OUTPUT:
-            save_page(driver)
-        pagination_elem = WebDriverWait(driver, 5).until(lambda s: s.find_element_by_class_name('pagination').is_displayed())
-        soup = bs(driver.page_source, 'html.parser')
+    url = f'{base_url}?page=1'
+    soup = bs(scraper.get(url).text, 'html.parser')
 
-        pagination_elem = soup.find('ul', class_='pagination')
-        pagination_items = pagination_elem.find_all('li', class_='page-item')
-        # Subtract 2 for the before and after arrow
-        page_count = len(pagination_items) - 2
-        mangas = find_manga_reaperscans(driver, soup, name)
-        for i in range(2, page_count + 1):
-            url = f'{base_url}?page={i}'
-            driver.get(url)
-            soup = bs(driver.page_source, 'html.parser')
-            mangas = mangas + find_manga_reaperscans(driver, soup, name)
-
-    finally:
-        driver.quit()
-
+    pagination_elem = soup.find('ul', class_='pagination')
+    pagination_items = pagination_elem.find_all('li', class_='page-item')
+    # Subtract 2 for the before and after arrow
+    page_count = len(pagination_items) - 2
+    mangas = find_manga_reaperscans(soup, name)
+    for i in range(2, page_count + 1):
+        url = f'{base_url}?page={i}'
+        soup = bs(scraper.get(url).text, 'html.parser')
+        mangas = mangas + find_manga_reaperscans(soup, name)
     return mangas
 
 def time_diff_to_date(time):
@@ -471,40 +424,30 @@ def time_diff_to_date(time):
     return today - diff
 
 def latest_chapter_reaperscans(url):
-    driver = setup_driver()
-    driver.get(url)
+    # Tool for getting through cloudfare captcha
+    # If it doesn't work anymore run:
+    # pip show cloudscraper -> then if its not the latest version run
+    # pip install cloudscraper -U
+    # If that doesn't fix it, must find a new tool
+    scraper = cloudscraper.create_scraper()
+    soup = bs(scraper.get(url).text, 'html.parser')
+    className = 'list-item col-sm-3 no-border'
+    results = soup.find_all(class_=className)
+    if len(results) <= 0:
+        return []
+    latest_chapter = {'chapter_number': 0, 'date': datetime.datetime.min, 'link': ''}
+    for elem in results:
+        chapter_number_elem = elem.find('span')
+        link_elem = elem.find('a', class_='item-company')
 
-    if SAVE_OUTPUT:
-        save_page(driver)
-    try:
-        className = 'list-item col-sm-3 no-border'
-        # Need to wait for the browser to setup otherwise sometimes it is too fast
-        # and results in a "Stale element reference: element is not attached to the page of the document"
-        time.sleep(2)
-        element = WebDriverWait(driver, 5).until(lambda s: s.find_element(By.CSS_SELECTOR, f'div[class="{className}"]').is_displayed())
+        chapter_number = float(chapter_number_elem.text.strip())
+        link = link_elem['href']
+        date = time_diff_to_date(link_elem.text.strip())
 
-        soup = bs(driver.page_source, 'html.parser')
+        if date > latest_chapter['date'] or (date == latest_chapter['date'] and chapter_number > latest_chapter['chapter_number']):
+            latest_chapter['date'] = date
+            latest_chapter['chapter_number'] = chapter_number
+            latest_chapter['link'] = link
 
-        results = soup.find_all(class_=className)
-        if len(results) <= 0:
-            return []
-        latest_chapter = {'chapter_number': 0, 'date': datetime.datetime.min, 'link': ''}
-        for elem in results:
-            chapter_number_elem = elem.find('span')
-            link_elem = elem.find('a', class_='item-company')
-
-            chapter_number = float(chapter_number_elem.text.strip())
-            link = link_elem['href']
-            date = time_diff_to_date(link_elem.text.strip())
-
-            if date > latest_chapter['date'] or (date == latest_chapter['date'] and chapter_number > latest_chapter['chapter_number']):
-                latest_chapter['date'] = date
-                latest_chapter['chapter_number'] = chapter_number
-                latest_chapter['link'] = link
-
-        latest_chapter['date'] = latest_chapter['date'].strftime('%m/%d/%Y')
-
-    finally:
-        driver.quit()
-
+    latest_chapter['date'] = latest_chapter['date'].strftime('%m/%d/%Y')
     return latest_chapter

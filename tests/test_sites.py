@@ -24,12 +24,13 @@ def test_leviatanscans_latest_chapter(app, client):
     res = client.get(f'/latest_chapter/leviatanscans.com/https://leviatanscans.com/manga/the-legend-of-sura-venom-dragon/')
     assert res.status_code == 200
 
-#def test_reaperscans_search(app, client):
-#    res = client.get(f'/search/reaperscans.com/xiu tu')
-#    assert res.status_code == 200
-#def test_reaperscans_latest_chapter(app, client):
-#    res = client.get(f'/latest_chapter/reaperscans.com/https://reaperscans.com/comics/316621-the-great-mage-returns-after-4000-years')
-#    assert res.status_code == 200
+def test_reaperscans_search(app, client):
+    res = client.get(f'/search/reaperscans.com/xiu tu')
+    assert res.status_code == 200
+
+def test_reaperscans_latest_chapter(app, client):
+    res = client.get(f'/latest_chapter/reaperscans.com/https://reaperscans.com/comics/316621-the-great-mage-returns-after-4000-years')
+    assert res.status_code == 200
 
 def test_latest(app, client):
     manga_data = {
@@ -45,21 +46,21 @@ def test_latest(app, client):
                 'latest_chapter': 0
             },
             {
-                'img_src': 'https://cover.nep.li/cover/Dungeon-Ni-Deai.jpg',
+                'img_src': 'https://leviatanscans.com/wp-content/uploads/2021/03/cover_MLHWR-110x150.png',
                 'last_read': 0,
-                'link': 'https://manga4life.com/manga/Dungeon-Ni-Deai',
-                'name': 'Dungeon ni Deai wo Motomeru no wa Machigatte Iru Darou ka',
-                'source': 'manga4life.com',
+                'link': 'https://leviatanscans.com/manga/the-max-leveled-hero-will-return/',
+                'name': 'The Max Leveled Hero Will Return!',
+                'source': 'leviatanscans.com',
                 'release_date': '',
                 'chapter_link': '',
                 'latest_chapter': 0
             },
             {
-                'img_src': 'https://cover.nep.li/cover/Solo-Leveling.jpg',
+                'img_src': '',
                 'last_read': 0,
-                'link': 'https://manga4life.com/manga/Solo-Leveling',
-                'name': 'Solo Leveling',
-                'source': 'manga4life.com',
+                'link': 'https://reaperscans.com/comics/777794-demonic-emperor',
+                'name': 'Demonic Emperor',
+                'source': 'reaperscans.com',
                 'release_date': '',
                 'chapter_link': '',
                 'latest_chapter': 0
